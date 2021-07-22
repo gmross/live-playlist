@@ -1,6 +1,6 @@
 # Live Playlist
 
-![Header image of project](images/test_header.jpg)
+<!-- ![Header image of project](images/test_header.jpg) -->
 
 This is a script written in Python3 that grabs concert setlists for a specified
 band and creates a Spotify playlist for the given concert.

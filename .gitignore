@@ -14,4 +14,4 @@ images/test*.jpg
 __pycache__
 
 # Hide request logs
-resp_logs/
+logs/
