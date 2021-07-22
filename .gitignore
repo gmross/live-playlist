@@ -1,2 +1,17 @@
 # Hide API keys in a json file
 *config.json
+
+# Hide work-in-progress markdown images
+images/test*.jpg
+
+# Hide vscode settings
+.vscode/
+
+# Hide pycharm settings
+.idea/
+
+# Hide pycache
+__pycache__
+
+# Hide request logs
+resp_logs/
