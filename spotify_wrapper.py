@@ -1,6 +1,7 @@
 import requests
 import base64
 import datetime
+import json
 
 
 class SpotifyWrapper(object):
@@ -37,7 +38,11 @@ class SpotifyWrapper(object):
     # for getting auth token
     token_url = "https://accounts.spotify.com/api/token"
 
-    # for checking expiration
+    # for keeping track of songs
+    song_ids = []
+
+    # for keeping track of playlist
+    playlist_id = None
 
     def __init__(self, client_id, client_secret):
         self.client_id = client_id
@@ -100,6 +105,167 @@ class SpotifyWrapper(object):
             return True
 
         return False
+    
+    def get_search_header(self):
+        """
+        Returns the header field for search endpoints
+        """
+        return {
+            "Authorization": f"Bearer {self.access_token}"
+        }
+    
+    def get_search_params(self, song_name, artist_name):
+        """
+        Returns the search body for a song name and artist name
+
+        Params
+        ------
+        song_name: str
+            The name of the song
+        artist_name: str
+            The name of the artist
+        """
+        return {
+            "q": f"{song_name} {artist_name}",
+            "type": "track,artist"
+        }
+    
+    def find_song(self, song_name, artist_name):
+        """
+        Searches for a specified song in the spotify API
+
+        Params
+        ------
+        song_name: str
+            The name of the song
+        artist_name: str
+            The name of the artist
+        """
+        if self.access_token_is_expired:
+            self.gen_access_token()
+        
+        search_url = "https://api.spotify.com/v1/search"
+        response = requests.get(url=search_url, 
+                           params=self.get_search_params(song_name, artist_name), 
+                           headers=self.get_search_header())
+        
+        # Validate response
+        status = response.status_code
+        if status not in range(200, 299):
+            print(f"Error {status}. Search for {song_name} by {artist_name} " 
+                    + "unsuccessful.")
+            return False
+        
+        # Pull needed data from response
+        res = response.json()
+
+        if res["tracks"]["total"] < 1:
+            print(f"No result found for {song_name}")
+            return False
+
+        # Just get first match for now
+        for track in res["tracks"]["items"]:
+            '''Debugging info
+            print(f"{track['name']} by {track['artists'][0]['name']} on " + 
+                  f"{track['album']['name']}", end=" ")
+            '''
+            print(f"Grabbing data for {song_name} by {artist_name}")
+            uri = res["tracks"]["items"][0]["uri"]
+            self.song_ids.append(uri)
+            return True
+
+        print(f"Could not find {song_name} by {artist_name}.") 
+        print("It may be missing from Spotify")
+        return False
+
+    def find_songs(self, artist_name, song_list):
+        """
+        Searches for all given songs and retrieves data we need for making a playlist
+
+        Params
+        ------
+        artist_name: str
+            The name of the artist
+        song_list: list
+            A list of the songs we are searching for
+        """
+        missing = 0
+        for song in song_list:
+            result = self.find_song(song, artist_name)
+            if not result:
+                missing = missing + 1
+        
+        return missing
+    
+    def get_user_headers(self):
+        """
+        Returns the properly formatted header for getting user info
+        """
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+
+    def get_user_id(self):
+        """
+        Gets the users id
+        """
+        me_url = "https://api.spotify.com/v1/me"
+        response = requests.get(url=me_url, headers=self.get_user_headers())
+
+        status = response.status_code
+        if status not in range(200, 299):
+            print(f"{status} Trouble finding user. Make sure you've added an access token.")
+            return ""
+        
+        res = response.json()
+
+        return res["id"]
+
+    def get_creation_body(self, name, desc):
+        return {
+            "name": f"{name}",
+            "description": f"{desc}",
+            "public": "false"
+        }
+    
+    def get_creation_header(self):
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+    
+    def create_playlist(self, name, desc, user_id):
+        """
+        Creates a new playlist on Spotify
+
+        Params
+        ------
+        name: str
+            The name for the playlist
+        desc: str
+            The description for the playlist
+        """
+        create_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
+
+        response = requests.post(url=create_url, 
+                                 data=self.get_creation_body(name, desc), 
+                                 headers=self.get_creation_header())
+        
+        # Validate
+        status = response.status_code
+        if status not in range(200, 299):
+            print("Could not make playlist")
+            return False
+        
+        res = response.json()
+        self.playlist_id = res["id"]
+
+        return True
+
+
 
 
 def main():

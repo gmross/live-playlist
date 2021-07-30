@@ -366,6 +366,15 @@ class SetlistFmWrapper:
             nextPage = nextPage + 1
         
         print(f"Total number of retrieved candidates: {len(self.possible_sets)}")
+    
+    def get_setlist_songs(self):
+        songs = []
+
+        for portion in self.setlist["sets"]["set"]:
+            for song in portion["song"]:
+                songs.append(song["name"])
+        
+        return songs
 
 
 def main():

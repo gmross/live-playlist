@@ -40,7 +40,7 @@ def main():
     
     # Searching for bands with similar names
     """
-    artist = "Novelists"
+    artist = "Chunk! No, Captain Chunk!"
     setlist.get_artist_by_name(artist)
     if(setlist.artist == ""):
         print("There are multiple artists with a matching name. Please choose one:")
@@ -52,15 +52,15 @@ def main():
     """
     # Searching for setlists by artist name
     artist2 = "August Burns Red"
-    """
+    
     setlist.get_setlists_by_artist_name(artist2)
     print("Possible sets to choose from: " + f"{len(setlist.possible_sets)}")
     setlist.print_setlists_sparse()
     print("Printing Worcester Palladium... ")
     setlist.pick_setlist(6)
     setlist.print_setlist_info(setlist.setlist)
-    """
     
+
     setlist.get_artist_by_name(artist2)
     if(setlist.artist == ""):
         print("There are multiple artists with a matching name. Please choose one:")
@@ -76,7 +76,23 @@ def main():
     setlist.print_setlists_sparse()
     setlist.pick_setlist(73)
     setlist.print_setlist_info(setlist.setlist)
+    
 
+    song = "Legend of Zelda"
+
+    # Generate token
+    spotify.gen_access_token()
+
+    # Search for a song
+    result = spotify.find_song(song, artist2)
+    print(result)
+
+    # Search for all songs in a setlist   
+    songs = setlist.get_setlist_songs()
+    print(songs)
+    result = spotify.find_songs(artist2, songs)
+    #print(result)
+    #print(spotify.song_ids)
 
 if __name__ == "__main__":
     main()
