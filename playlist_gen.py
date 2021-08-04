@@ -25,7 +25,7 @@ def main():
 
     spot = spotify_wrapper
     spotify = spot.SpotifyWrapper(spotify_id, spotify_secret)
-    token_generated = spotify.gen_access_token()
+    token_generated = spotify.gen_auth_token()
 
     # Ensure we got a token
     if not token_generated:
@@ -52,15 +52,14 @@ def main():
     """
     # Searching for setlists by artist name
     artist2 = "August Burns Red"
-    
+    '''
     setlist.get_setlists_by_artist_name(artist2)
     print("Possible sets to choose from: " + f"{len(setlist.possible_sets)}")
     setlist.print_setlists_sparse()
-    print("Printing Worcester Palladium... ")
     setlist.pick_setlist(6)
     setlist.print_setlist_info(setlist.setlist)
+    '''
     
-
     setlist.get_artist_by_name(artist2)
     if(setlist.artist == ""):
         print("There are multiple artists with a matching name. Please choose one:")
@@ -77,22 +76,26 @@ def main():
     setlist.pick_setlist(73)
     setlist.print_setlist_info(setlist.setlist)
     
-
+    
     song = "Legend of Zelda"
-
-    # Generate token
-    spotify.gen_access_token()
 
     # Search for a song
     result = spotify.find_song(song, artist2)
-    print(result)
-
-    # Search for all songs in a setlist   
-    songs = setlist.get_setlist_songs()
-    print(songs)
-    result = spotify.find_songs(artist2, songs)
     #print(result)
-    #print(spotify.song_ids)
+
+    # Search for all songs in a setlist
+    songs = setlist.get_setlist_songs()
+    #print(songs)
+    result = spotify.find_songs(artist2, songs)
+    if result > 0:
+        print(f"Couldn't find matches for {result} songs. " + 
+            "They may be covers or may not be on Spotify")
+    '''
+    spotify.create_playlist(f'test {artist2}', 'test descr')
+    '''
+    spotify.create_playlist(f"{setlist.print_set_name()}", 
+                            f"{setlist.print_set_info()}")
+    
 
 if __name__ == "__main__":
     main()

@@ -42,6 +42,7 @@ class SetlistFmWrapper:
     set_date = ""
     set_venue = ""
     set_loc = ""
+    tour = ""
     setlist = []
 
     def __init__(self, api_key):
@@ -267,6 +268,19 @@ class SetlistFmWrapper:
             where 1 <= num <= |possible_setlists|
         """
         self.setlist = self.possible_sets[num - 1]
+        # Set details for printing later
+        self.set_venue = self.setlist["venue"]["name"]
+        self.set_date = self.setlist["eventDate"]
+        self.set_loc = self.setlist["venue"]["city"]["name"] + ", "
+        if self.setlist["venue"]["city"]["country"]["code"] == "US":
+            self.set_loc = self.set_loc + self.setlist["venue"]["city"]["state"]
+        else:
+            self.set_loc = self.set_loc + self.setlist["venue"]["city"]["country"]["name"]
+        # See if we have a tour name
+        if "tour" in self.setlist:
+            self.tour = self.setlist["tour"]["name"]
+        else:
+            self.tour = ""
     
     
     def get_setlist_page(self, artist_name, artist_id, city, state_name, 
@@ -368,6 +382,9 @@ class SetlistFmWrapper:
         print(f"Total number of retrieved candidates: {len(self.possible_sets)}")
     
     def get_setlist_songs(self):
+        """
+        Gets all song names from a set
+        """
         songs = []
 
         for portion in self.setlist["sets"]["set"]:
@@ -375,6 +392,24 @@ class SetlistFmWrapper:
                 songs.append(song["name"])
         
         return songs
+    
+    def print_set_name(self):
+        """
+        Returns a string formatted to represent a playlist title
+        """
+        return f"{self.artist} Live @ {self.set_venue}"
+    
+    def print_set_info(self):
+        """
+        Returns a string that describes the setlist information
+        """
+        desc = f"Setlist for {self.artist}"
+        if self.tour is not "":
+            desc = desc + f" on {self.tour}. "
+        else:
+            desc = desc + ". "
+        desc = desc + f"They played at {self.set_venue} in {self.set_loc}. Performed on {self.set_date}."
+        return desc
 
 
 def main():

@@ -2,7 +2,8 @@ import requests
 import base64
 import datetime
 import json
-
+from urllib.parse import urlencode, urlsplit, parse_qs
+import webbrowser
 
 class SpotifyWrapper(object):
     """
@@ -37,6 +38,7 @@ class SpotifyWrapper(object):
     client_secret = None
     # for getting auth token
     token_url = "https://accounts.spotify.com/api/token"
+    auth_flow_url = "https://accounts.spotify.com/authorize"
 
     # for keeping track of songs
     song_ids = []
@@ -83,7 +85,7 @@ class SpotifyWrapper(object):
             "grant_type": "client_credentials"
         }
 
-    def gen_access_token(self):
+    def gen_cc_access_token(self):
         """
         Generates an oauth token that lasts an hour so we can make our requests
         """
@@ -104,6 +106,58 @@ class SpotifyWrapper(object):
 
             return True
 
+        return False
+    
+    def get_login_params(self):
+        """
+        Returns the request body for application auth workflow
+        """
+        return {
+            "client_id": f"{self.client_id}",
+            "response_type": "code",
+            "redirect_uri": "https://localhost/",
+            "scope": "playlist-modify-public playlist-modify-private"
+        }
+    
+    def get_auth_params(self, code):
+        return {
+            "grant_type": "authorization_code",
+            "code": f"{code}",
+            "redirect_uri": "https://localhost/"
+        }
+    
+    def gen_auth_token(self):
+        """
+        Generates an oauth token using application auth workflow 
+        """
+        # generate url
+        data = urlencode(self.get_login_params())
+        req_url = f"{self.auth_flow_url}?{data}"
+        # Prompt user to provide access
+        print(f"Go to the following url to authorize: {req_url}")
+        redirect_url = input(f"Enter the url to which you were redirected: ")
+        # Grab authorization code
+        q = parse_qs(urlsplit(redirect_url).query)
+        code = q['code'][0]
+        # request access token
+        token = requests.post(url=self.token_url, 
+                             data=self.get_auth_params(code), 
+                             headers=self.get_token_header())
+        
+        # Check we got a valid response
+        if token.status_code in range(200, 299):
+            token_response = token.json()
+            # Figure out expiration time
+            now = datetime.datetime.now()
+            expires_time = token_response['expires_in']  # expiration time in seconds
+            expiration = now + datetime.timedelta(seconds=expires_time)
+            self.access_token_expiration = expiration
+            self.access_token_is_expired = False
+            # Update access token
+            self.access_token = token_response['access_token']
+            return True
+
+        token.raise_for_status()
         return False
     
     def get_search_header(self):
@@ -142,7 +196,7 @@ class SpotifyWrapper(object):
             The name of the artist
         """
         if self.access_token_is_expired:
-            self.gen_access_token()
+            self.gen_cc_access_token()
         
         search_url = "https://api.spotify.com/v1/search"
         response = requests.get(url=search_url, 
@@ -173,7 +227,7 @@ class SpotifyWrapper(object):
             uri = res["tracks"]["items"][0]["uri"]
             self.song_ids.append(uri)
             return True
-
+        
         print(f"Could not find {song_name} by {artist_name}.") 
         print("It may be missing from Spotify")
         return False
@@ -220,24 +274,39 @@ class SpotifyWrapper(object):
             return ""
         
         res = response.json()
-
         return res["id"]
 
     def get_creation_body(self, name, desc):
+        """
+        Returns the request paramaters for creating a playlist in json format
+        """
         return {
             "name": f"{name}",
             "description": f"{desc}",
-            "public": "false"
+            "public": "true"
         }
     
     def get_creation_header(self):
+        """
+        Returns the request headers for making a playlist in json format
+        """
         return {
             "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
     
-    def create_playlist(self, name, desc, user_id):
+    def get_populate_header(self):
+        """
+        Returns the request headers for adding items to a playlist in json format
+        """
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+            "playlist_id": f"{self.playlist_id}"
+        }
+    
+    def create_playlist(self, name, desc):
         """
         Creates a new playlist on Spotify
 
@@ -248,13 +317,13 @@ class SpotifyWrapper(object):
         desc: str
             The description for the playlist
         """
-        create_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
-
+        # Create playlist
+        create_url = f"https://api.spotify.com/v1/users/{self.get_user_id()}/playlists"
         response = requests.post(url=create_url, 
-                                 data=self.get_creation_body(name, desc), 
+                                 data=json.dumps(self.get_creation_body(name, desc)), 
                                  headers=self.get_creation_header())
         
-        # Validate
+        # Validate creation
         status = response.status_code
         if status not in range(200, 299):
             print("Could not make playlist")
@@ -263,6 +332,15 @@ class SpotifyWrapper(object):
         res = response.json()
         self.playlist_id = res["id"]
 
+        # Populate playlist
+        update_url = f"https://api.spotify.com/v1/playlists/{self.playlist_id}/tracks"
+        requests.post(url=update_url, 
+                      data=json.dumps(self.song_ids), 
+                      headers=self.get_populate_header())
+        
+        # Give url
+        playlist_url = res['external_urls']['spotify']
+        print(f"Playlist created! Available at: {playlist_url}")
         return True
 
 
