@@ -3,7 +3,6 @@ import base64
 import datetime
 import json
 from urllib.parse import urlencode, urlsplit, parse_qs
-import webbrowser
 
 class SpotifyWrapper(object):
     """
@@ -219,17 +218,21 @@ class SpotifyWrapper(object):
 
         # Just get first match for now
         for track in res["tracks"]["items"]:
-            '''Debugging info
-            print(f"{track['name']} by {track['artists'][0]['name']} on " + 
-                  f"{track['album']['name']}", end=" ")
             '''
-            print(f"Grabbing data for {song_name} by {artist_name}")
-            uri = res["tracks"]["items"][0]["uri"]
-            self.song_ids.append(uri)
-            return True
+            Debugging info
+            if DEBUG:
+                print(f"{track['name']} by {track['artists'][0]['name']} on " + 
+                      f"{track['album']['name']}", end=" ")
+                
+                print(f"Grabbing data for {song_name} by {artist_name}")
+            '''
+            if track["name"] == song_name:
+                uri = track["uri"]
+                self.song_ids.append(uri)
+                return True
         
-        print(f"Could not find {song_name} by {artist_name}.") 
-        print("It may be missing from Spotify")
+        print(f"Could not find {song_name} by {artist_name}. " + 
+                "It may be missing from Spotify")
         return False
 
     def find_songs(self, artist_name, song_list):

@@ -115,6 +115,18 @@ class SetlistFmWrapper:
 
         return True
 
+    def get_artist_name(self):
+        """
+        Returns the name of the artist
+        """
+        return self.artist
+    
+    def get_num_candidates(self):
+        """
+        Returns the number of artists that match a given name
+        """
+        return len(self.possible_artists)
+
     def print_candidates(self):
         """
         Print the artists returned by our search for an artist's name
@@ -154,10 +166,14 @@ class SetlistFmWrapper:
         return f"{self.api_base_url}/1.0/search/setlists"
 
     def print_setlist_info(self, artist_set):
-        # Basic info
+        # Essential info
         artist = artist_set["artist"]["name"]
         set_date = artist_set["eventDate"]
-        set_venue = artist_set["venue"]["name"]
+        # Account for missing venues
+        if artist_set["venue"]["name"] != "":
+            set_venue = artist_set["venue"]["name"]
+        else:
+            set_venue = "Unknown Venue"
         # See if we have a tour name
         if "tour" in artist_set:
             tour_name = artist_set["tour"]["name"]
@@ -165,8 +181,11 @@ class SetlistFmWrapper:
             tour_name = "Unknown tour"
 
         # Define location based on country to avoid wordiness
-        set_loc = artist_set["venue"]["city"]["name"] + ", "
-        # print(set["venue"])
+        if artist_set["venue"]["city"]["name"] != "":
+            set_loc = artist_set["venue"]["city"]["name"] + ", "
+        else:
+            set_loc = "Unknown City, "
+        
         if artist_set["venue"]["city"]["country"]["code"] == "US":
             set_loc = set_loc + artist_set["venue"]["city"]["state"]
         else:
@@ -197,7 +216,10 @@ class SetlistFmWrapper:
         for setlist in self.possible_sets:
             # Basic info
             set_date = setlist["eventDate"]
-            set_venue = setlist["venue"]["name"]
+            if setlist["venue"]["name"] != "":
+                set_venue = setlist["venue"]["name"]
+            else:
+                set_venue = "Unknown Venue"
             # See if we have a tour name
             if "tour" in setlist:
                 tour_name = setlist["tour"]["name"]
@@ -205,12 +227,21 @@ class SetlistFmWrapper:
                 tour_name = "Unknown tour"
             
             # Define location based on country to avoid wordiness
-            set_loc = setlist["venue"]["city"]["name"] + ", "
+            if setlist["venue"]["city"]["name"] != "":
+                set_loc = setlist["venue"]["city"]["name"] + ", "
+            else:
+                set_loc = "Unknown City, "
             # print(set["venue"])
             if setlist["venue"]["city"]["country"]["code"] == "US":
                 set_loc = set_loc + setlist["venue"]["city"]["state"]
             else:
                 set_loc = set_loc + setlist["venue"]["city"]["country"]["name"]
+            
+            # For empty venue/location info
+            if set_venue == "":
+                set_venue = "Unknown Venue"
+            if set_loc == "":
+                set_loc = "Unknown City"
             
             if last_tour != tour_name:
                 print(f" On {tour_name}")
@@ -228,7 +259,7 @@ class SetlistFmWrapper:
         artistName: str
             The artists name for which we are searching
         """
-        url = f"{self.get_setlist_endpoint()}" + "?" + f"artistName={artist_name}&year=2019&p=1"
+        url = f"{self.get_setlist_endpoint()}" + "?" + f"artistName={artist_name}&p=1"
         headers = self.get_header()
 
         try:
@@ -257,6 +288,18 @@ class SetlistFmWrapper:
 
         return True
     
+    def get_num_setlists(self):
+        """
+        Returns the number of setlists to choose from
+        """
+        return len(self.possible_sets)
+
+    def get_setlist(self):
+        """
+        Returns the setlist
+        """
+        return self.setlist
+        
     def pick_setlist(self, num):
         """
         Picks the user defined setlist from our setlists we found in our search
@@ -269,9 +312,16 @@ class SetlistFmWrapper:
         """
         self.setlist = self.possible_sets[num - 1]
         # Set details for printing later
-        self.set_venue = self.setlist["venue"]["name"]
+        if self.setlist["venue"]["name"] != "":
+            self.set_venue = self.setlist["venue"]["name"]
+        else:
+            self.set_venue = "Unknown Venue"
         self.set_date = self.setlist["eventDate"]
-        self.set_loc = self.setlist["venue"]["city"]["name"] + ", "
+        # Account for missing locations and different countries
+        if self.setlist["venue"]["city"]["name"] != "":
+            self.set_loc = self.setlist["venue"]["city"]["name"] + ", "
+        else:
+            self.set_loc = "Unknown City, "
         if self.setlist["venue"]["city"]["country"]["code"] == "US":
             self.set_loc = self.set_loc + self.setlist["venue"]["city"]["state"]
         else:
@@ -393,18 +443,24 @@ class SetlistFmWrapper:
         
         return songs
     
-    def print_set_name(self):
+    def setlist_name_to_string(self):
         """
         Returns a string formatted to represent a playlist title
         """
         return f"{self.artist} Live @ {self.set_venue}"
     
-    def print_set_info(self):
+    def print_setlist(self):
+        """
+        Prints the setlist we picked
+        """
+        self.print_setlist_info(self.setlist)
+    
+    def setlist_info_to_string(self):
         """
         Returns a string that describes the setlist information
         """
         desc = f"Setlist for {self.artist}"
-        if self.tour is not "":
+        if self.tour != "":
             desc = desc + f" on {self.tour}. "
         else:
             desc = desc + ". "
