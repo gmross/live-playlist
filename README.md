@@ -85,9 +85,11 @@ Create a `config.json` file and format it as follows:
 - [x] Write function to find matches on Spotify or skip the track if it is
       unavailable
 - [x] Make playlist with given account and return link to playlist
-- [ ] Add functionality to prompt user input for playlist generation
+- [x] Add functionality to prompt user input for playlist generation
 - [ ] Find more edge cases to fix bugs
 - [ ] Figure out a way to find songs that are mislabeled on setlist.fm
+- [ ] Come up with a solution to naming livestreams (right now, most
+      livestreams are labeled as "Unknown Venue", "Unknown City", etc.)
 - [ ] Make a `requirements.txt` to easily manage dependencies
 
 ## Known Issues
