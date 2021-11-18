@@ -1,10 +1,14 @@
-import requests
+"""
+    Spotify Wrapper
+"""
+import json
 import base64
 import datetime
-import json
+import operator
 from urllib.parse import urlencode, urlsplit, parse_qs
+import requests
 
-class SpotifyWrapper(object):
+class SpotifyWrapper():
     """
     A class to handle all Spotify API requests for our playlist generation
 
@@ -16,10 +20,10 @@ class SpotifyWrapper(object):
         encoded concatenation of the client_id and client_secret in the format
         base64<client_id:client_secret>
     access_token_expiration: datetime
-        a datetime object representing the time at which our access token 
+        a datetime object representing the time at which our access token
         expires
     access_token_is_expired: bool
-        a boolean to keep track of if we have an expired access token and need 
+        a boolean to keep track of if we have an expired access token and need
         to re-authenticate
     client_id: str
         a string containing the id given to a Spotify application
@@ -45,6 +49,9 @@ class SpotifyWrapper(object):
     # for keeping track of playlist
     playlist_id = None
 
+    # for choosing song version (e.g. rerelease)
+    choose_new_version = False
+
     def __init__(self, client_id, client_secret):
         self.client_id = client_id
         self.client_secret = client_secret
@@ -60,8 +67,8 @@ class SpotifyWrapper(object):
         if client_id is None or client_secret is None:
             raise Exception("You need a client id and a client secret to initiate API requests")
 
-        # Spotify Developer API for client credentials flow should encode the 
-        # client id and secret in the following format 
+        # Spotify Developer API for client credentials flow should encode the
+        # client id and secret in the following format
         # Authorization: Basic <base64 encoded client_id:client_secret>
         client_creds = f"{client_id}:{client_secret}"
         client_creds_b64 = base64.b64encode(client_creds.encode())
@@ -88,7 +95,7 @@ class SpotifyWrapper(object):
         """
         Generates an oauth token that lasts an hour so we can make our requests
         """
-        req = requests.post(self.token_url, data=self.get_token_params(), 
+        req = requests.post(self.token_url, data=self.get_token_params(),
                             headers=self.get_token_header())
 
         # Check we got a valid response
@@ -106,7 +113,7 @@ class SpotifyWrapper(object):
             return True
 
         return False
-    
+
     def get_login_params(self):
         """
         Returns the request body for application auth workflow
@@ -117,17 +124,20 @@ class SpotifyWrapper(object):
             "redirect_uri": "https://localhost/",
             "scope": "playlist-modify-public playlist-modify-private"
         }
-    
+
     def get_auth_params(self, code):
+        """
+        Returns formatted authorization request parameters
+        """
         return {
             "grant_type": "authorization_code",
             "code": f"{code}",
             "redirect_uri": "https://localhost/"
         }
-    
+
     def gen_auth_token(self):
         """
-        Generates an oauth token using application auth workflow 
+        Generates an oauth token using application auth workflow
         """
         # generate url
         data = urlencode(self.get_login_params())
@@ -136,13 +146,13 @@ class SpotifyWrapper(object):
         print(f"Go to the following url to authorize: {req_url}")
         redirect_url = input(f"Enter the url to which you were redirected: ")
         # Grab authorization code
-        q = parse_qs(urlsplit(redirect_url).query)
-        code = q['code'][0]
+        query = parse_qs(urlsplit(redirect_url).query)
+        code = query['code'][0]
         # request access token
-        token = requests.post(url=self.token_url, 
-                             data=self.get_auth_params(code), 
-                             headers=self.get_token_header())
-        
+        token = requests.post(url=self.token_url,
+                              data=self.get_auth_params(code),
+                              headers=self.get_token_header())
+
         # Check we got a valid response
         if token.status_code in range(200, 299):
             token_response = token.json()
@@ -158,7 +168,7 @@ class SpotifyWrapper(object):
 
         token.raise_for_status()
         return False
-    
+
     def get_search_header(self):
         """
         Returns the header field for search endpoints
@@ -166,7 +176,7 @@ class SpotifyWrapper(object):
         return {
             "Authorization": f"Bearer {self.access_token}"
         }
-    
+
     def get_search_params(self, song_name, artist_name):
         """
         Returns the search body for a song name and artist name
@@ -179,10 +189,24 @@ class SpotifyWrapper(object):
             The name of the artist
         """
         return {
-            "q": f"{song_name} {artist_name}",
-            "type": "track,artist"
+            "q": f"{artist_name} {song_name}",
+            "type": "track"
         }
-    
+
+    def set_version_choice(self, choice):
+        """
+        Determines if we should choose the new version of a song for our playlist
+        """
+        self.choose_new_version = choice
+
+    def log_json(self, song_name, artist_name, res):
+        """
+        Creates a json file and writes the given json body to it in a neat format
+        """
+        log_file = open(f"logs/{artist_name}-{song_name}.json", "w")
+        log_file.write(json.dumps(res, indent=4, sort_keys=True))
+        log_file.close()
+
     def find_song(self, song_name, artist_name):
         """
         Searches for a specified song in the spotify API
@@ -196,19 +220,19 @@ class SpotifyWrapper(object):
         """
         if self.access_token_is_expired:
             self.gen_cc_access_token()
-        
+
         search_url = "https://api.spotify.com/v1/search"
-        response = requests.get(url=search_url, 
-                           params=self.get_search_params(song_name, artist_name), 
-                           headers=self.get_search_header())
-        
+        response = requests.get(url=search_url,
+                                params=self.get_search_params(song_name, artist_name),
+                                headers=self.get_search_header())
+
         # Validate response
         status = response.status_code
         if status not in range(200, 299):
-            print(f"Error {status}. Search for {song_name} by {artist_name} " 
-                    + "unsuccessful.")
+            print(f"Error {status}. Search for {song_name} by {artist_name} "
+                  + "unsuccessful.")
             return False
-        
+
         # Pull needed data from response
         res = response.json()
 
@@ -217,22 +241,35 @@ class SpotifyWrapper(object):
             return False
 
         # Just get first match for now
+        song_versions = []
         for track in res["tracks"]["items"]:
-            '''
-            Debugging info
-            if DEBUG:
-                print(f"{track['name']} by {track['artists'][0]['name']} on " + 
-                      f"{track['album']['name']}", end=" ")
-                
-                print(f"Grabbing data for {song_name} by {artist_name}")
-            '''
-            if track["name"] == song_name:
+            if track["artists"][0]["name"] == artist_name:
                 uri = track["uri"]
-                self.song_ids.append(uri)
-                return True
-        
-        print(f"Could not find {song_name} by {artist_name}. " + 
-                "It may be missing from Spotify")
+                # grab release date
+                date_formatted = track["album"]["release_date"]
+                # and format
+                if track["album"]["release_date_precision"] == "year":
+                    release_date = datetime.datetime.strptime(date_formatted, "%Y").date()
+                elif track["album"]["release_date_precision"] == "month":
+                    release_date = datetime.datetime.strptime(date_formatted, "%Y-%m").date()
+                else:
+                    release_date = datetime.datetime.strptime(date_formatted, "%Y-%m-%d").date()
+                # add to dict
+                song_versions.append({"uri": uri, "date": release_date})
+
+        # find newest version
+        song_versions.sort(key=operator.itemgetter("date"), reverse=True)
+        if len(song_versions) > 0:
+            self.song_ids.append(song_versions[0]["uri"])
+            return True
+
+
+        # print(self.get_search_params(song_name, artist_name))
+        # make log file
+        self.log_json(song_name, artist_name, response.json())
+
+        print(f"Could not find {song_name} by {artist_name}. " +
+              "It may be missing from Spotify")
         return False
 
     def find_songs(self, artist_name, song_list):
@@ -246,14 +283,17 @@ class SpotifyWrapper(object):
         song_list: list
             A list of the songs we are searching for
         """
+        # clear song list
+        self.song_ids = []
+
         missing = 0
         for song in song_list:
             result = self.find_song(song, artist_name)
             if not result:
                 missing = missing + 1
-        
+
         return missing
-    
+
     def get_user_headers(self):
         """
         Returns the properly formatted header for getting user info
@@ -275,7 +315,7 @@ class SpotifyWrapper(object):
         if status not in range(200, 299):
             print(f"{status} Trouble finding user. Make sure you've added an access token.")
             return ""
-        
+
         res = response.json()
         return res["id"]
 
@@ -288,7 +328,7 @@ class SpotifyWrapper(object):
             "description": f"{desc}",
             "public": "true"
         }
-    
+
     def get_creation_header(self):
         """
         Returns the request headers for making a playlist in json format
@@ -298,7 +338,7 @@ class SpotifyWrapper(object):
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
-    
+
     def get_populate_header(self):
         """
         Returns the request headers for adding items to a playlist in json format
@@ -308,7 +348,7 @@ class SpotifyWrapper(object):
             "Content-Type": "application/json",
             "playlist_id": f"{self.playlist_id}"
         }
-    
+
     def create_playlist(self, name, desc):
         """
         Creates a new playlist on Spotify
@@ -320,27 +360,32 @@ class SpotifyWrapper(object):
         desc: str
             The description for the playlist
         """
+        # Avoid empty playlists
+        if len(self.song_ids) < 1:
+            print("Setlist is empty.")
+            return False
+
         # Create playlist
         create_url = f"https://api.spotify.com/v1/users/{self.get_user_id()}/playlists"
-        response = requests.post(url=create_url, 
-                                 data=json.dumps(self.get_creation_body(name, desc)), 
+        response = requests.post(url=create_url,
+                                 data=json.dumps(self.get_creation_body(name, desc)),
                                  headers=self.get_creation_header())
-        
+
         # Validate creation
         status = response.status_code
         if status not in range(200, 299):
             print("Could not make playlist")
             return False
-        
+
         res = response.json()
         self.playlist_id = res["id"]
 
         # Populate playlist
         update_url = f"https://api.spotify.com/v1/playlists/{self.playlist_id}/tracks"
-        requests.post(url=update_url, 
-                      data=json.dumps(self.song_ids), 
+        requests.post(url=update_url,
+                      data=json.dumps(self.song_ids),
                       headers=self.get_populate_header())
-        
+
         # Give url
         playlist_url = res['external_urls']['spotify']
         print(f"Playlist created! Available at: {playlist_url}")
@@ -350,6 +395,9 @@ class SpotifyWrapper(object):
 
 
 def main():
+    """
+    False main to clarify accidental calls
+    """
     print("The Spotify API class is not meant to be called on its own.")
     print("Please call the playlist_gen.py file instead, or " +
           "refer to the documentation if you need more help.")

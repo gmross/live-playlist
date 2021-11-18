@@ -32,6 +32,7 @@ This program requires the following python libraries:
 
 - requests
 - json
+- operator
 - base64
 - datetime
 - time
@@ -86,6 +87,7 @@ Create a `config.json` file and format it as follows:
       unavailable
 - [x] Make playlist with given account and return link to playlist
 - [x] Add functionality to prompt user input for playlist generation
+- [x] Add functionality between original or remix versions of songs
 - [ ] Find more edge cases to fix bugs
 - [ ] Figure out a way to find songs that are mislabeled on setlist.fm
 - [ ] Come up with a solution to naming livestreams (right now, most

@@ -1,7 +1,10 @@
-import requests
-import json
-from requests.exceptions import HTTPError
+"""
+    Setlist.fm API wrapper
+"""
 from time import sleep
+#import json
+from requests.exceptions import HTTPError
+import requests
 
 
 class SetlistFmWrapper:
@@ -19,7 +22,7 @@ class SetlistFmWrapper:
     possible_artists: list
         a list of artists matching the name criteria if we have multiple options
     possible_sets: list
-        a list of potential sets for a given query to limit the number of 
+        a list of potential sets for a given query to limit the number of
         requests that we send
     set_name: str
         the name of the tour for the set
@@ -49,7 +52,7 @@ class SetlistFmWrapper:
         self.api_key = api_key
 
     def get_header(self):
-        """ 
+        """
         Returns the request header
         """
         return {
@@ -58,7 +61,7 @@ class SetlistFmWrapper:
         }
 
     def get_params_artist_name(self, name):
-        """ 
+        """
         Creates the request body to search for an artist by name
         """
         return f"artistName={name}&sort=relevance"
@@ -83,6 +86,11 @@ class SetlistFmWrapper:
         name: str
             The artist's name for which we are searching
         """
+        # clear values before search
+        self.artist = ""
+        self.possible_artists = []
+        self.artist_info = {}
+
         try:
             response = requests.get(f"{self.get_artist_endpoint()}" + "?" +
                                     f"{self.get_params_artist_name(name)}",
@@ -92,9 +100,6 @@ class SetlistFmWrapper:
             response.raise_for_status()
         except HTTPError as http_err:
             print(f"HTTP Error occurred: {http_err}")
-            return False
-        except Exception as err:
-            print(f"Other error occurred: {err}")
             return False
 
         # parse response
@@ -120,7 +125,7 @@ class SetlistFmWrapper:
         Returns the name of the artist
         """
         return self.artist
-    
+
     def get_num_candidates(self):
         """
         Returns the number of artists that match a given name
@@ -166,6 +171,9 @@ class SetlistFmWrapper:
         return f"{self.api_base_url}/1.0/search/setlists"
 
     def print_setlist_info(self, artist_set):
+        """
+        Prints details of the setlist
+        """
         # Essential info
         artist = artist_set["artist"]["name"]
         set_date = artist_set["eventDate"]
@@ -185,7 +193,7 @@ class SetlistFmWrapper:
             set_loc = artist_set["venue"]["city"]["name"] + ", "
         else:
             set_loc = "Unknown City, "
-        
+
         if artist_set["venue"]["city"]["country"]["code"] == "US":
             set_loc = set_loc + artist_set["venue"]["city"]["state"]
         else:
@@ -202,7 +210,7 @@ class SetlistFmWrapper:
                 song_name = song["name"]
                 print(f"   {number : >2}: {song_name}")
                 number = number + 1
-    
+
     def print_setlists_sparse(self):
         """
         Prints just the barebones info on our setlist candidates to narrow candidates
@@ -210,7 +218,7 @@ class SetlistFmWrapper:
         """
         num = 1   # For indexing options to let user choose
         last_tour = ""
-        
+
         artist = self.possible_sets[0]["artist"]["name"]
         print(f"Matching setlists available for {artist}:")
         for setlist in self.possible_sets:
@@ -225,7 +233,7 @@ class SetlistFmWrapper:
                 tour_name = setlist["tour"]["name"]
             else:
                 tour_name = "Unknown tour"
-            
+
             # Define location based on country to avoid wordiness
             if setlist["venue"]["city"]["name"] != "":
                 set_loc = setlist["venue"]["city"]["name"] + ", "
@@ -236,20 +244,20 @@ class SetlistFmWrapper:
                 set_loc = set_loc + setlist["venue"]["city"]["state"]
             else:
                 set_loc = set_loc + setlist["venue"]["city"]["country"]["name"]
-            
+
             # For empty venue/location info
             if set_venue == "":
                 set_venue = "Unknown Venue"
             if set_loc == "":
                 set_loc = "Unknown City"
-            
+
             if last_tour != tour_name:
                 print(f" On {tour_name}")
                 last_tour = tour_name
             print(f" {num : >3}: " + f"{set_venue} in {set_loc} on {set_date}")
-            
+
             num = num + 1
-    
+
     def get_setlists_by_artist_name(self, artist_name):
         """
         Gets all setlists for artists that match the given artist name
@@ -262,14 +270,15 @@ class SetlistFmWrapper:
         url = f"{self.get_setlist_endpoint()}" + "?" + f"artistName={artist_name}&p=1"
         headers = self.get_header()
 
+        # clear sets
+        self.setlist = []
+        self.possible_sets = []
+
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()  # Validate response went through
         except HTTPError as err:
             print(f"HTTP Error occurred: {err}")
-            return False
-        except Exception as err:
-            print(f"Other error occurred: {err}")
             return False
 
         # print(response)
@@ -287,7 +296,7 @@ class SetlistFmWrapper:
         # print(test_candidates)
 
         return True
-    
+
     def get_num_setlists(self):
         """
         Returns the number of setlists to choose from
@@ -299,7 +308,7 @@ class SetlistFmWrapper:
         Returns the setlist
         """
         return self.setlist
-        
+
     def pick_setlist(self, num):
         """
         Picks the user defined setlist from our setlists we found in our search
@@ -307,7 +316,7 @@ class SetlistFmWrapper:
         Params
         ------
         num: int
-            The 1-indexed choice of setlist provided 
+            The 1-indexed choice of setlist provided
             where 1 <= num <= |possible_setlists|
         """
         self.setlist = self.possible_sets[num - 1]
@@ -331,15 +340,16 @@ class SetlistFmWrapper:
             self.tour = self.setlist["tour"]["name"]
         else:
             self.tour = ""
-    
-    
-    def get_setlist_page(self, artist_name, artist_id, city, state_name, 
+
+
+    def get_setlist_page(self, artist_name, artist_id, city, state_name,
                          state_abbr, tour_name, venue_name, year, page_num):
         """
         Grab a given page of 20 sets (including empty sets) for an artist
         """
         # Build our url based on what parameters we're given
-        url = f"{self.get_setlist_endpoint()}" + "?" + f"artistName={artist_name}"#"&year=2019&p={page_num}"
+        url = f"{self.get_setlist_endpoint()}" + "?" + \
+              f"artistName={artist_name}"
         if city:
             url = url + f"&cityName={city}"
         if state_name:
@@ -361,9 +371,6 @@ class SetlistFmWrapper:
         except HTTPError as err:
             print(f"HTTP Error occurred: {err}")
             return 0
-        except Exception as err:
-            print(f"Other error occurred: {err}")
-            return 0
 
         # print(response)
         res = response.json()
@@ -378,8 +385,8 @@ class SetlistFmWrapper:
                 self.possible_sets.append(setlist)
         # print(test_candidates)
         return res["total"]
-    
-    def get_all_setlists(self, artist_name, artist_id, city, state_name, 
+
+    def get_all_setlists(self, artist_name, artist_id, city, state_name,
                          state_abbr, tour_name, venue_name, year):
         """
         Sends requests to get all possible tours for an artist
@@ -406,55 +413,55 @@ class SetlistFmWrapper:
             optional
         year: str
             The year of the show
-            optional 
+            optional
         """
 
-        # TODO: Iterate over all pages and sleep between requests
-
-        total = self.get_setlist_page(artist_name, artist_id, city, state_name, 
+        self.possible_sets = []     # reset setlists between searches
+        # Iterate over all pages and sleep between requests
+        total = self.get_setlist_page(artist_name, artist_id, city, state_name,
                                       state_abbr, tour_name, venue_name, year, 1)
         print(f"Total number of matching setlists: {total}")
 
         tally = 20
-        nextPage = 2
+        next_page = 2
 
         while tally < total:
             # We need to sleep between API calls so we do not exceed limit
             sleep(0.5)
-            print(f"Grabbing page {nextPage}...")
-            self.get_setlist_page(artist_name, artist_id, city, state_name, 
-                                  state_abbr, tour_name, venue_name, year, 
-                                  nextPage)
+            print(f"Grabbing page {next_page}...")
+            self.get_setlist_page(artist_name, artist_id, city, state_name,
+                                  state_abbr, tour_name, venue_name, year,
+                                  next_page)
             #increment
             tally = tally + 20
-            nextPage = nextPage + 1
-        
+            next_page = next_page + 1
+
         print(f"Total number of retrieved candidates: {len(self.possible_sets)}")
-    
+
     def get_setlist_songs(self):
         """
         Gets all song names from a set
         """
-        songs = []
+        songs = [] # reset songs
 
         for portion in self.setlist["sets"]["set"]:
             for song in portion["song"]:
                 songs.append(song["name"])
-        
+
         return songs
-    
+
     def setlist_name_to_string(self):
         """
         Returns a string formatted to represent a playlist title
         """
         return f"{self.artist} Live @ {self.set_venue}"
-    
+
     def print_setlist(self):
         """
         Prints the setlist we picked
         """
         self.print_setlist_info(self.setlist)
-    
+
     def setlist_info_to_string(self):
         """
         Returns a string that describes the setlist information
@@ -464,11 +471,15 @@ class SetlistFmWrapper:
             desc = desc + f" on {self.tour}. "
         else:
             desc = desc + ". "
-        desc = desc + f"They played at {self.set_venue} in {self.set_loc}. Performed on {self.set_date}."
+        desc = desc + f"They played at {self.set_venue} in {self.set_loc}. "\
+               + f"Performed on {self.set_date}."
         return desc
 
 
 def main():
+    """
+    Dummy main to avoid erroneous calls
+    """
     print("The Setlist.fm API class is not meant to be called on its own.")
     print("Please call the playlist_gen.py file instead, or ")
     print("refer to the documentation if you need more help.")
