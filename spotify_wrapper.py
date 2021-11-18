@@ -204,7 +204,7 @@ class SpotifyWrapper():
         Creates a json file and writes the given json body to it in a neat format
         """
         log_file = open(f"logs/{artist_name}-{song_name}.json", "w")
-        log_file.write(json.dumps(res, indent=4, sort_keys=True))
+        log_file.write(json.dumps(res, indent=2, sort_keys=True))
         log_file.close()
 
     def find_song(self, song_name, artist_name):
